@@ -397,18 +397,19 @@
                      (unreadable-edn %))))))
 
 (defn inspect-result [result _opts]
-  (html (r/with-let [!desc (r/atom nil)
+  (html (r/with-let [should-fetch? (not (contains? result :content-type))
+                     !desc (r/atom (if should-fetch? nil (viewer/wrap-value (dissoc result :viewer) (:viewer result))))
                      fetch-fn (fn [opts]
                                 (.then (fetch! result opts)
                                        (fn [more]
                                          (swap! !desc viewer/merge-descriptions more))))
-                     _ (.then (fetch! result {})
-                              (fn [desc]
-                                (reset! !desc desc)))]
+                     _ (when should-fetch?
+                         (.then (fetch! result {})
+                                (fn [desc]
+                                  (reset! !desc desc))))]
           [view-context/provide {:fetch-fn fetch-fn}
-           (when (seq @!desc)
-             [error-boundary
-              [inspect @!desc]])])))
+           (when @!desc
+             [error-boundary [inspect @!desc]])])))
 
 (defn in-process-fetch [value opts]
   (.resolve js/Promise (viewer/describe value opts)))

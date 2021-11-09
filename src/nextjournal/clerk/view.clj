@@ -41,9 +41,11 @@
 #_(->edn [:vec (with-meta [] {'clojure.core.protocols/datafy (fn [x] x)}) :var #'->edn])
 
 (defn described-result [_ns {:keys [result blob-id]}]
-  (v/with-viewer* :clerk/result (cond-> {:blob-id blob-id}
-                                  (v/width result)  (assoc :width (v/width result))
-                                  (v/viewer result) (assoc :viewer (v/viewer result)))))
+  (let [desc (v/describe result)]
+    (v/with-viewer* :clerk/result (cond-> {:blob-id blob-id}
+                                    (v/content-type desc) (assoc :content-type (v/content-type desc))
+                                    (v/width desc)        (assoc :width (v/width desc))
+                                    (v/viewer desc)       (assoc :viewer (v/viewer desc))))))
 
 (defn inline-result [ns {:keys [result]}]
   (v/with-viewer* :clerk/inline-result
@@ -80,6 +82,7 @@
        true v/notebook
        ns (assoc :scope (v/datafy-scope ns))))))
 
+#_(doc->viewer @nextjournal.clerk.webserver/!doc)
 #_(meta (doc->viewer (nextjournal.clerk/eval-file "notebooks/elements.clj")))
 #_(nextjournal.clerk/show! "notebooks/test.clj")
 

@@ -40,11 +40,17 @@
   (:form num?)
   (pr-str num?))
 
+(def value-key         :nextjournal/value)
+(def viewers-key       :nextjournal/viewers)
+(def viewer-key        :nextjournal/viewer)
+(def width-key         :nextjournal/width)
+(def content-type-key  :nextjournal/content-type)
+
 ;; TODO: think about naming this to indicate it does nothing if the value is already wrapped.
 (defn wrap-value
   "Ensures `x` is wrapped in a map under a `:nextjournal/value` key."
-  ([x] (if (and (map? x) (:nextjournal/value x)) x {:nextjournal/value x}))
-  ([x v] (-> x wrap-value (assoc :nextjournal/viewer v))))
+  ([x] (if (and (map? x) (value-key x)) x {value-key x}))
+  ([x v] (-> x wrap-value (assoc viewer-key v))))
 
 #_(wrap-value 123)
 #_(wrap-value {:nextjournal/value 456})
@@ -56,38 +62,23 @@
        (contains? x :nextjournal/value)))
 
 
-(defn value
-  "Takes `x` and returns the `:nextjournal/value` from it, or otherwise `x` unmodified."
-  [x]
-  (if (wrapped-value? x)
-    (:nextjournal/value x)
-    x))
+(defn get-wrapped
+  "Returns the `key` for a given wrapped value `value`, `nil` otherwise."
+  [key value]
+  (when (wrapped-value? value)
+    (key value)))
 
-#_(value (with-viewer :code '(+ 1 2 3)))
-#_(value 123)
+(defn value [x]
+  (or (get-wrapped :nextjournal/value x)
+      x))
 
-(defn viewer
-  "Returns the `:nextjournal/viewer` for a given wrapped value `x`, `nil` otherwise."
-  [x]
-  (when (map? x)
-    (:nextjournal/viewer x)))
-
+(def viewers      (partial get-wrapped viewers-key))
+(def width        (partial get-wrapped width-key))
+(def viewer       (partial get-wrapped viewer-key))
+(def content-type (partial get-wrapped content-type-key))
 
 #_(viewer (with-viewer :code '(+ 1 2 3)))
 #_(viewer "123")
-
-(defn viewers
-  "Returns the `:nextjournal/viewers` for a given wrapped value `x`, `nil` otherwise."
-  [x]
-  (when (map? x)
-    (:nextjournal/viewers x)))
-
-(defn width
-  "Returns the `:nextjournal/width` for a given wrapped value `x`, `nil` otherwise."
-  [x]
-  (when (map? x)
-    (:nextjournal/width x)))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; table viewer normalization
@@ -246,10 +237,13 @@
 
 (defn process-fns [viewers]
   (into []
-        (map (fn [{:as viewer :keys [pred render-fn transform-fn]}]
+        (map (fn [{:as viewer :keys [pred fetch-fn render-fn transform-fn]}]
                (cond-> viewer
                  (or (symbol? pred) (not (ifn? pred)))
                  (update :pred #?(:cljs *eval* :clj #(->Fn+Form '(constantly false) (eval %))))
+
+                 (and fetch-fn (or (symbol? fetch-fn) (not (ifn? fetch-fn))))
+                 (update :fetch-fn #?(:cljs *eval* :clj #(->Fn+Form '(constantly false) (eval %))))
 
                  (and transform-fn (or (symbol? transform-fn) (not (ifn? transform-fn))))
                  (update :transform-fn #?(:cljs *eval* :clj #(->Fn+Form '(constantly false) (eval %))))
@@ -312,8 +306,8 @@
   ([xs]
    (describe xs {}))
   ([xs opts]
-   (assign-closing-parens
-    (describe xs (merge {:path [] :viewers (process-fns (get-viewers *ns* (viewers xs)))} opts) [])))
+   #_assign-closing-parens
+   (describe xs (merge {:path [] :viewers (process-fns (get-viewers *ns* (viewers xs)))} opts) []))
   ([xs opts current-path]
    (let [{:as opts :keys [viewers path offset]} (merge {:offset 0} opts)
          wrapped-value (try (wrapped-with-viewer (value xs) viewers) ;; TODO: respect `viewers` on `xs`
@@ -322,7 +316,7 @@
          {:as viewer :keys [fetch-opts fetch-fn]} (viewer wrapped-value)
          fetch-opts (merge fetch-opts (select-keys opts [:offset]))
          xs (value wrapped-value)]
-     #_(prn :xs xs :type (type xs) :path path :current-path current-path)
+     (prn :xs xs :type (type xs) :path path :current-path current-path :viewer viewer :fetch-opts fetch-opts :fetch-fn fetch-fn)
      (merge {:path path}
             (with-viewer* (cond-> viewer (map? viewer) (dissoc viewer :pred :transform-fn))
               (cond (< (count current-path)
@@ -372,9 +366,6 @@
 
                     :else ;; leaf value
                     xs))))))
-
-
-
 
 #_#_#_#_
 (let [rand-int-seq (fn [n to]

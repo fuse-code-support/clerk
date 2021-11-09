@@ -48,12 +48,30 @@
     (if (contains? blob->result blob-id)
       (let [result (blob->result blob-id)
             viewers (v/get-viewers doc-ns (v/viewers result))
-            opts (assoc (get-fetch-opts query-string) :viewers viewers)]
-        {:status 200
-         #_#_ ;; leaving this out for now so I can open it directly
-         :headers {"Content-Type" "application/edn"}
-         :body (view/->edn (v/describe result opts))})
+            opts (assoc (get-fetch-opts query-string) :viewers viewers)
+            described (v/describe result opts)]
+        (if (v/content-type described)
+          {:body (v/value described) :content-type (v/content-type described)}
+          {:body (view/->edn described)}))
       {:status 404})))
+
+
+(let [blob->result (meta @!doc)
+      blob-id "5duBdU6A3626nZRW3GU1ydEUL2ct7D"
+      doc-ns (:ns (meta @!doc))
+      result (blob->result blob-id)]
+  (assert doc-ns "namespace must be set")
+  (v/describe result {})
+  #_
+  (if (contains? blob->result blob-id)
+    (let [result (blob->result blob-id)
+          viewers (v/get-viewers doc-ns (v/viewers result))
+          opts (assoc (get-fetch-opts "") :viewers viewers)
+          described (v/describe result opts)]
+      (if (v/content-type described)
+        {:body (v/value described) :content-type (v/content-type described)}
+        (view/->edn described)))
+    {:status 404}))
 
 (defn app [{:as req :keys [uri]}]
   (if (:websocket? req)
