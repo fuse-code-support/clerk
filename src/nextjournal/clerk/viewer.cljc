@@ -160,8 +160,8 @@
    {:pred inst? :fn '(fn [x] (v/html (v/tagged-value "#inst" [:span.syntax-string.inspected-value "\"" (str x) "\""])))}
    {:pred (fn [_] false) :name :table :fn 'v/table-viewer
     :fetch-fn (fn [{:as opts :keys [describe-fn offset]} xs]
-                (assoc (with-viewer* :table (cond-> (update xs :rows describe-fn opts)
-                                              (pos? offset) :rows))
+                (assoc (wrap-value (cond-> (update xs :rows describe-fn opts)
+                                     (pos? offset) :rows))
                        :path [:rows] :replace-path [offset]))}
    {:pred (fn [_] false) :name :table-error :fn 'v/table-error :fetch-opts {:n 5}}])
 
